@@ -1,15 +1,15 @@
-#Documentación sobre el proyecto de Regresión.
+# Documentación sobre el proyecto de Regresión.
 
-##Nombre de la base de datos.
+## Nombre de la base de datos.
 La base de datos original lleva por nombre "IUBAT_students_performace_Dataset"
 
-##Fuente (URl)
+## Fuente (URl)
 https://data.mendeley.com/datasets/ns87rtkv58/2
 
 ##Descripción del problema.
 La vida universitaria de una persona está marcada por diversas situaciones y problemas constantes que pueden afectar, de manera positiva o negativa, el desempeño académico de cada estudiante. Por ello, se estudiarán distintos tipos de información relacionados con su vida universitaria, tales como intereses personales, tiempo de estudio, métodos de aprendizaje, acceso a la tecnología, problemas de salud, suspensiones, ingresos familiares y vida social, entre otros.
 
-##Objetivo del análisis
+## Objetivo del análisis
 Determinar si existe una correlación entre estas variables y el rendimiento académico de cada estudiante, con el fin de analizar cómo los distintos factores relacionados con la vida universitaria pueden influir en su desempeño académico. A través de este análisis, se busca identificar posibles relaciones entre dichas variables y establecer si algunas de ellas están asociadas de manera significativa con mejores o peores resultados académicos. De esta manera, se pretende comprender mejor qué aspectos del entorno y las condiciones personales de los estudiantes podrían estar vinculados con su rendimiento académico.
 
 ##Variable objetivo
