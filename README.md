@@ -1,0 +1,1 @@
+La version de python para el entorno es 3.12.3
