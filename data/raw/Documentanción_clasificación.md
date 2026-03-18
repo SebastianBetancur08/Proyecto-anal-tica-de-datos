@@ -27,12 +27,12 @@ Attrition (Rotación de personal en la empresa)
 
 ### Age
  - *Descripción*: Edad del empleado expresada en años.
- - *Tipo de variable*: Numérica discreta
+ - *Tipo de variable*: Numérica discreta (Ordinal)
 
 
 ### Attrition
  - *Descripción*: Indica si el empleado ha dejado la empresa o continúa trabajando en ella.
- - *Tipo de variable*: Categórica binaria
+ - *Tipo de variable*: Categórica binaria (Nominal)
 
 
 ### BusinessTravel
@@ -52,7 +52,7 @@ Attrition (Rotación de personal en la empresa)
 
 ### DistanceFromHome
  - *Descripción*: Distancia aproximada entre la residencia del empleado y su lugar de trabajo.
- - *Tipo de variable*: Numérica discreta
+ - *Tipo de variable*: Numérica continua
 
 
 ### Education
@@ -233,7 +233,7 @@ Attrition (Rotación de personal en la empresa)
 1470
 
  ## Número de variables
-35 contando el identificador
+35 contando el identificador.
 
  ## Posibles hipótesis de estudio
  - *1*: En la primera hipótesis se espera demostrar que en una empresa con una buena gestión de seguridad y salud en el trabajo, las calificaciones de los empleados y su percepción de la empresa se relacionen tanto con no renunciar como con un buen salario, es decir, si una persona está contenta, es posible que tenga un buen salario y además es posible que no renuncie.
