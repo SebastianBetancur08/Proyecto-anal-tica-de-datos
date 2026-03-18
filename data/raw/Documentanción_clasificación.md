@@ -1,7 +1,7 @@
 # Documentación sobre el proyecto de clasificación.
 
 ## Nombre de la base de datos
-El conjunto de datos original lleva como nombre "WA_Fn-UseC_-HR-Employee-Attrition.csv"
+El conjunto de datos original lleva como nombre "WA_Fn-UseC_-HR-Employee-Attrition.csv", y el nombre de la base de datos es IBM HR Analytics Employee Attrition & Performance
 
 ![Imagen oficinas de IMB](Photos/clasificacion2.jpeg)
 
