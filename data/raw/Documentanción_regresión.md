@@ -1,11 +1,11 @@
 # Documentación sobre el proyecto de Regresión.
 
 ## Nombre de la base de datos.
-La base de datos original lleva por nombre "IUBAT_students_performace_Dataset"
+La base de datos original lleva por nombre "IUBAT_students_performance_Dataset"
 
 ![Imagen oficinas de IMB](Photos/regresion2.jpeg)
 
-## Fuente (URl)
+## Fuente (URL)
 https://data.mendeley.com/datasets/ns87rtkv58/2
 
 ## Descripción del problema.
@@ -71,7 +71,7 @@ CGPA, promedio acomulado del estudiante, una variable numérica continua.
  - *Tipo de variable*: Numérica discreta
 
 
-### How many times do you seat for study in a day?
+### How many times do you sit for study in a day?
  - *Descripción*: Número de sesiones de estudio que realiza el estudiante durante un día.
  - *Tipo de variable*: Numérica discreta
 
@@ -91,7 +91,7 @@ CGPA, promedio acomulado del estudiante, una variable numérica continua.
  - *Tipo de variable*: Categórica binaria
 
 
-### How many hour do you spent daily in social media? (Hours)
+### How many hour do you spend daily in social media? (Hours)
  - *Descripción*: Cantidad de horas diarias que el estudiante dedica al uso de redes sociales.
  - *Tipo de variable*: Numérica discreta
 
@@ -111,27 +111,27 @@ CGPA, promedio acomulado del estudiante, una variable numérica continua.
  - *Tipo de variable*: Categórica binaria
 
 
-### Did you ever got suspension?
+### Did you ever get suspension?
  - *Descripción*: Indica si el estudiante ha recibido alguna suspensión académica o disciplinaria.
  - *Tipo de variable*: Categórica binaria
 
 
-### Do you attend in teacher consultancy for any kind of academical problems?
+### Do you attend in teacher consultancy for any kind of academic problems?
  - *Descripción*: Indica si el estudiante consulta a profesores para resolver dificultades académicas.
  - *Tipo de variable*: Categórica binaria
 
 
-### What are the skills do you have ?
+### What are the skills do you have?
  - *Descripción*: Habilidades adicionales que posee el estudiante como programación, liderazgo o comunicación.
  - *Tipo de variable*: Categórica nominal
  - *Posibles datos*: Programming, Software Development, Web Development (Frontend), Web Development (Backend), Cyber Security, Networking, Content Creation / Writing, Digital Marketing, Graphic Design, Photography / Videography, Video Editing, Animation (2D/3D), Machine Learning, Artificial Intelligence, Data Entry / Data Collection, SEO, App / Android Development, Game Development, UI / UX Design, WordPress, IoT, System Analysis, Market Analysis, Teaching / Mentoring, Problem Solving, MIS (Management Information Systems), JavaScript / PHP (tecnologías específicas) 
  - *Nota*: Algunas respuestas son no válidas o tienen errores tipográficos.
-### How many hour do you spent daily on your skill development? (Hours )
+### How many hour do you spend daily on your skill development? (Hours )
  - *Descripción*: Número de horas diarias que el estudiante dedica al desarrollo de habilidades personales o profesionales.
  - *Tipo de variable*: Numérica discreta
 
 
-### What is you interested area?
+### What is your interested area?
  - *Descripción*: Área principal de interés del estudiante como tecnología, investigación, negocios o arte.
  - *Tipo de variable*: Categórica nominal
  - *Posibles datos*:Software Development, Hardware, Networking, Web Development, Machine Learning / Deep Learning, Artificial Intelligence, Data Science, UI / UX Design, Cyber Security, Blockchain / Blockchain Engineering, App Development, Game Development, Graphics Design, Digital Marketing, MIS (Management Information Systems), Physics, Mathematics, QA / Testing, Problem Solving, Competitive Programming, IoT (Internet of Things), Cyber Forensics / Security Analysis
@@ -169,16 +169,16 @@ CGPA, promedio acomulado del estudiante, una variable numérica continua.
 
 
 ### What is your current CGPA?
- - *Descripción*: Promedio acumulado de calificaciones del estudiante hasta el momento.
+ - *Descripción*: Promedio acomulado de calificaciones del estudiante hasta el momento.
  - *Tipo de variable*: Numérica continua
 
 
-### How many Credit did you have completed?
+### How many Credits did you have completed?
  - *Descripción*: Número total de créditos académicos que el estudiante ha aprobado.
  - *Tipo de variable*: Numérica discreta
 
 
-### What is your monthly Family Income 
+### What is your monthly family income 
  - *Descripción*: Ingreso económico mensual del núcleo familiar del estudiante.
  - *Tipo de variable*: Numérica continua
 
@@ -190,5 +190,5 @@ CGPA, promedio acomulado del estudiante, una variable numérica continua.
 
  ## Posibles hipótesis de estudio
  - *1*: La primera hipótesis es que el nivel de atención de un estudiante se relacione positivamente con su promedio acumulado, para esto buscamos estudiar si los estudiantes que tienen más tiempo al día estudiando, menos tiempo en redes sociales y que prefieren los cursos de manera presencial (Por estar expuestos a menos distracciones) obtienen mejores resultados en su desempeño académico.
- - *2*: En la segunda hipótesis buscamos que exista una correlación entre la solvencia económica familiar y mejores resultados, además se podría pensar que esta correlación es independiente de la existencia de alguna dispacidad.
+ - *2*: En la segunda hipótesis buscamos que exista una correlación entre la solvencia económica familiar y mejores resultados, además se podría pensar que esta correlación es independiente de la existencia de alguna discapacidad.
  - *3*: Para la última hipótesis buscamos encontrar si verdaderamente los estudiantes con problemas de comportamiento evidenciados en suspensiones o llamados de atención tienen peor desempeño, o si por el contrario, su comportamiento es independiente a su rendimiento académico.
