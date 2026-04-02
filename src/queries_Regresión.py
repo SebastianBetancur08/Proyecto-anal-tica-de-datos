@@ -4,11 +4,12 @@ import pandas as pd
 import sqlite3
 from pathlib import Path
 
-# Crear carpeta data/processed/Regresión si no existe
-Path('data/processed/Regresión').mkdir(parents=True, exist_ok=True)
+# Crear carpeta data/processed/Regresión si no existe (relativa al directorio padre del script)
+ruta_base = Path(__file__).parent.parent / 'data' / 'processed' / 'Regresión'
+ruta_base.mkdir(parents=True, exist_ok=True)
 
 #Conectar a la base de datos
-conn= sqlite3.connect('database/regresion.db')
+conn= sqlite3.connect(Path(__file__).parent.parent / 'database' / 'regresion.db')
 
 
 #Consultas SQL
@@ -73,7 +74,7 @@ if numero not in queries:
     print("Query no válida")
 else:
     df = pd.read_sql_query(queries[numero], conn)
-    ruta = f"data/processed/Regresión/regresion_query{numero}.csv"
+    ruta = ruta_base / f'regresion_query{numero}.csv'
     df.to_csv(ruta, index=False)
     print("Archivo guardado")
 
