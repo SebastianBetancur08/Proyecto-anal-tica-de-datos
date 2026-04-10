@@ -1,9 +1,7 @@
 # Documentación sobre el proyecto de clasificación.
 
 ## Nombre de la base de datos
-El conjunto de datos original lleva como nombre "WA_Fn-UseC_-HR-Employee-Attrition.csv", y el nombre de la base de datos es "IBM HR Analytics Employee Attrition & Performance"
-
-![Imagen oficinas de IMB](Photos/clasificacion2.jpeg)
+El conjunto de datos original lleva como nombre "WA_Fn-UseC_-HR-Employee-Attrition.csv"
 
 
 ## Fuente (URL)
@@ -19,20 +17,17 @@ Nuestro objetivo es identificar posibles relaciones entre una serie de datos de 
 ## Variable objetivo 
 Attrition (Rotación de personal en la empresa)
 
-![Imagen oficinas de IMB](Photos/clasificacion1.jpeg)
-
-
 ## Diccionario de variables
 
 
 ### Age
  - *Descripción*: Edad del empleado expresada en años.
- - *Tipo de variable*: Numérica discreta (Ordinal)
+ - *Tipo de variable*: Numérica discreta
 
 
 ### Attrition
  - *Descripción*: Indica si el empleado ha dejado la empresa o continúa trabajando en ella.
- - *Tipo de variable*: Categórica binaria (Nominal)
+ - *Tipo de variable*: Categórica binaria
 
 
 ### BusinessTravel
@@ -52,7 +47,7 @@ Attrition (Rotación de personal en la empresa)
 
 ### DistanceFromHome
  - *Descripción*: Distancia aproximada entre la residencia del empleado y su lugar de trabajo.
- - *Tipo de variable*: Numérica continua
+ - *Tipo de variable*: Numérica discreta
 
 
 ### Education
@@ -233,7 +228,7 @@ Attrition (Rotación de personal en la empresa)
 1470
 
  ## Número de variables
-35 contando el identificador.
+35 contando el identificador
 
  ## Posibles hipótesis de estudio
  - *1*: En la primera hipótesis se espera demostrar que en una empresa con una buena gestión de seguridad y salud en el trabajo, las calificaciones de los empleados y su percepción de la empresa se relacionen tanto con no renunciar como con un buen salario, es decir, si una persona está contenta, es posible que tenga un buen salario y además es posible que no renuncie.

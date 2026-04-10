@@ -1,3 +1,5 @@
 .venv/
 database/
 data/processed/
+.vscode/
+cred.json/

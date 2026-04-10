@@ -1,431 +1,460 @@
-import streamlit as st
-import pandas as pd
+#python -m streamlit run app.py
+
+
+import warnings
+warnings.filterwarnings("ignore")
+
 import numpy as np
-from pathlib import Path
-from sklearn.impute import KNNImputer
-from itertools import combinations, product
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.stats import chi2_contingency, spearmanr, kruskal
-from sklearn.preprocessing import LabelEncoder
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import streamlit as st
+from scipy import stats
 
-# Configuración de Streamlit
-st.set_page_config(page_title="EDA Regresión - Lab 3", layout="wide", initial_sidebar_state="expanded")
-sns.set_style('whitegrid')
+# ─────────────────────────────────────────────
+#  Configuración de página
+# ─────────────────────────────────────────────
+st.set_page_config(
+    page_title="EDA Interactivo",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-# ==================== FUNCIONES EXACTAS DEL NOTEBOOK (Adaptadas a Streamlit) ====================
+ACCENT   = "#4F8FF7"
+SUCCESS  = "#27AE60"
+WARNING  = "#E67E22"
+DANGER   = "#E74C3C"
+PALETTE  = px.colors.qualitative.Set2
 
-def encontrar_csv(root=Path.cwd()):
-    ruta_csv = root / 'data' / 'raw' / 'dataset_Regresión.csv'
-    if ruta_csv.exists():
-        return ruta_csv
-    elif root != root.parent:
-        root = root.parent
-        return encontrar_csv(root)
-    else:
-        raise FileNotFoundError("No se encontró el archivo dataset_Regresión.csv")
+# ─────────────────────────────────────────────
+#  Helpers de carga
+# ─────────────────────────────────────────────
+@st.cache_data
+def load_clasificacion(path: str = "dataset_clasificacion.csv") -> pd.DataFrame:
+    df = pd.read_csv(path)
+    df.columns = df.columns.str.strip()
+    str_cols = df.select_dtypes(include="object").columns
+    for c in str_cols:
+        df[c] = df[c].str.strip().str.lower()
+    # eliminar columnas constantes
+    constant = [c for c in df.columns if df[c].nunique() <= 1]
+    df = df.drop(columns=constant)
+    return df
 
-def indentificar_tipos_de_variables(df,umbral_categoricas=8):
-    categoricas = []
-    numericas = []
-    
-    for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            if df[col].nunique()  <= umbral_categoricas and df[col].nunique() <len(df)*0.05:
-                categoricas.append(col)
-            else:
-                numericas.append(col)
-        else:
-            categoricas.append(col)
-    
-    return categoricas, numericas
 
-def detectar_outliers(df, variable):
-    Q1 = df[variable].quantile(0.25)
-    Q3 = df[variable].quantile(0.75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-    outliers = df[(df[variable]  < lower_bound) | (df[variable]  > upper_bound)]
-    return outliers
+@st.cache_data
+def load_regresion(path: str = "dataset_regresion.csv") -> pd.DataFrame:
+    df = pd.read_csv(path)
+    df = df.drop(columns=[c for c in df.columns if c.startswith("Unnamed")], errors="ignore")
+    df.columns = df.columns.str.strip()
+    # Limpiar CGPA outliers evidentes (>5 es imposible en escala 4.0 o 10.0 típica)
+    target = "What is your current CGPA?"
+    df[target] = pd.to_numeric(df[target], errors="coerce")
+    df = df[df[target].between(0, 5)].copy()
+    return df
 
-def crear_histogramas_sin_outliers(df, columna, bins=None, color="skyblue", titulo=None, clip_outliers=True):
-    data = df[columna].dropna()
 
-    q75, q25 = np.percentile(data, [75, 25])
-    iqr = q75 - q25
-    lower_bound = q25 - 1.5 * iqr
-    upper_bound = q75 + 1.5 * iqr
-    data_sin_outliers = data[(data  >= lower_bound)  & (data  <= upper_bound)]
-    n_outliers = len(data) - len(data_sin_outliers)
-
-    if clip_outliers and len(data_sin_outliers)  >= max(3, len(data) * 0.5):
-        data_plot = data_sin_outliers
-        rango_text = f"(sin outliers: {lower_bound:.2f} a {upper_bound:.2f})"
-    else:
-        data_plot = data
-        rango_text =  "(incluye todos los valores)"
-
-    if bins is None:
-        if data_plot.nunique() <= 20:
-            bins = data_plot.nunique()
-        else:
-            q75p, q25p = np.percentile(data_plot, [75, 25])
-            iqrp = q75p - q25p
-            if iqrp  > 0:
-                bin_width = 2 * iqrp / (len(data_plot) ** (1/3))
-                bins = int(np.ceil((data_plot.max() - data_plot.min()) / bin_width))
-                bins = max(15, min(bins, 40))
-            else:
-                bins = 20
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.set_facecolor('#fafafa')
-    fig.patch.set_facecolor('white')
-    ax.hist(data_plot, bins=bins, color=color, edgecolor='black', alpha=0.85)
-
-    if titulo is None:
-        titulo = f"Distribución de {columna} {rango_text}"
-    ax.set_title(titulo, fontsize=16, fontweight='bold')
-    ax.set_xlabel(columna, fontsize=12)
-    ax.set_ylabel('Frecuencia', fontsize=12)
-
-    Mediana = data.median()
-    Promedio = data.mean()
-    Varianza = data.var()
-
-    ax.axvline(Mediana, color='red', linestyle='dashed', linewidth=1.5, label=f'Mediana: {Mediana:.2f}')
-    ax.axvline(Promedio, color='green', linestyle='dashed', linewidth=1.5, label=f'Promedio: {Promedio:.2f}')
-    ax.legend(loc='upper left', frameon=True, framealpha=0.95, fontsize=10)
-
-    stats_text = (
-        f'n = {len(data)}\n'
-        f'Media = {Promedio:.2f}\n'
-        f'Mediana = {Mediana:.2f}\n'
-        f'Varianza = {Varianza:.2f}\n'
-        f'Rango datos = {data.min():.2f} - {data.max():.2f}\n'
-        f'Valores usados = {len(data_plot)} ({n_outliers} outliers excluidos)'
+# ─────────────────────────────────────────────
+#  Función de métricas
+# ─────────────────────────────────────────────
+def metric_card(label: str, value, delta=None, color=ACCENT):
+    delta_html = f"<span style='font-size:0.85rem;color:#888'>{delta}</span>" if delta else ""
+    st.markdown(
+        f"""
+        <div style='background:#1E2130;border-radius:10px;padding:18px 22px;border-left:4px solid {color};'>
+            <p style='margin:0;font-size:0.8rem;color:#AAA;letter-spacing:0.05em'>{label}</p>
+            <p style='margin:4px 0 0;font-size:1.8rem;font-weight:700;color:#FFF'>{value}</p>
+            {delta_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    ax.text(0.98, 0.98, stats_text, transform=ax.transAxes, verticalalignment='top', horizontalalignment='right',
-            bbox=dict(boxstyle='round', facecolor='white', alpha=0.9, edgecolor='#cccccc'), fontsize=10)
 
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.grid(True, alpha=0.25)
-    plt.tight_layout()
-    return fig
 
-def crear_histogramas_con_outliers(df, columna, bins=None, color="skyblue", titulo=None):
-    data = df[columna].dropna()
+# ═════════════════════════════════════════════
+#  PESTAÑA 1 — CLASIFICACIÓN
+# ═════════════════════════════════════════════
+def tab_clasificacion():
+    st.header("🏢 IBM HR Analytics — Rotación de Empleados (Attrition)")
+    st.markdown("Dataset con **1 470 empleados** y **35 variables** originales. "
+                "La variable objetivo es **Attrition** (¿abandonó la empresa?).")
 
-    if bins is None:
-        if data.nunique() <= 20:
-            bins = data.nunique()
-        else:
-            q75, q25 = np.percentile(data, [75, 25])
-            iqr = q75 - q25
-            if iqr  > 0:
-                bin_width = 2 * iqr / (len(data) ** (1/3))
-                bins = int(np.ceil((data.max() - data.min()) / bin_width))
-                bins = max(15, min(bins, 40))
-            else:
-                bins = 20
+    try:
+        df = load_clasificacion()
+    except FileNotFoundError:
+        st.error("No se encontró `dataset_clasificacion.csv` en la carpeta actual.")
+        return
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.set_facecolor('#fafafa')
-    fig.patch.set_facecolor('white')
-    ax.hist(data, bins=bins, color=color, edgecolor='black', alpha=0.85)
+    TARGET = "Attrition"
+    num_cols = df.select_dtypes(include="number").columns.tolist()
+    cat_cols = [c for c in df.select_dtypes(include="object").columns if c != TARGET]
 
-    if titulo is None:
-        titulo = f"Distribución de {columna}"
-    ax.set_title(titulo, fontsize=16, fontweight='bold')
-    ax.set_xlabel(columna, fontsize=12)
-    ax.set_ylabel('Frecuencia', fontsize=12)
+    # ── Sidebar ──────────────────────────────
+    with st.sidebar:
+        st.subheader("⚙️ Filtros — Clasificación")
+        dept_opts = ["Todos"] + sorted(df["Department"].unique().tolist())
+        dept_sel  = st.selectbox("Departamento", dept_opts)
+        gender_opts = ["Todos"] + sorted(df["Gender"].unique().tolist())
+        gender_sel  = st.selectbox("Género", gender_opts)
+        age_range   = st.slider("Rango de Edad", int(df["Age"].min()), int(df["Age"].max()),
+                                (int(df["Age"].min()), int(df["Age"].max())))
 
-    Mediana = data.median()
-    Promedio = data.mean()
-    Varianza = data.var()
+    mask = (df["Age"].between(*age_range))
+    if dept_sel   != "Todos": mask &= df["Department"] == dept_sel
+    if gender_sel != "Todos": mask &= df["Gender"]     == gender_sel
+    dff = df[mask].copy()
 
-    ax.axvline(Mediana, color='red', linestyle='dashed', linewidth=1.5, label=f'Mediana: {Mediana:.2f}')
-    ax.axvline(Promedio, color='green', linestyle='dashed', linewidth=1.5, label=f'Promedio: {Promedio:.2f}')
-    ax.legend(loc='upper left', frameon=True, framealpha=0.95, fontsize=10)
+    # ── KPIs ─────────────────────────────────
+    yes_rate = (dff[TARGET] == "yes").mean() * 100
+    n_yes    = (dff[TARGET] == "yes").sum()
+    n_no     = (dff[TARGET] == "no").sum()
+    avg_inc  = dff["MonthlyIncome"].mean()
 
-    stats_text = f'n = {len(data)}\nMedia = {Promedio:.2f}\nMediana = {Mediana:.2f}\nVarianza = {Varianza:.2f}\nRango: {data.min():.2f} - {data.max():.2f}'
-    ax.text(0.98, 0.98, stats_text, transform=ax.transAxes, verticalalignment='top', horizontalalignment='right',
-            bbox=dict(boxstyle='round', facecolor='white', alpha=0.9, edgecolor='#cccccc'), fontsize=10)
+    k1, k2, k3, k4 = st.columns(4)
+    with k1: metric_card("Total Empleados",   f"{len(dff):,}")
+    with k2: metric_card("Rotaron (Yes)",     f"{n_yes:,}",  f"{yes_rate:.1f}%", DANGER)
+    with k3: metric_card("Se quedaron (No)",  f"{n_no:,}",   f"{100-yes_rate:.1f}%", SUCCESS)
+    with k4: metric_card("Ingreso Mensual Prom.", f"${avg_inc:,.0f}")
 
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.grid(True, alpha=0.25)
-    plt.tight_layout()
-    return fig
-
-# ==================== PRUEBAS ESTADÍSTICAS ====================
-
-def obtener_resultados_chi(df, cate, alpha=0.05, filtro="Todas"):
-    resultados = []
-    for var1, var2 in combinations(cate, 2):
-        tabla = pd.crosstab(df[var1], df[var2])
-        chi2, p, dof, expected = chi2_contingency(tabla)
-        dependencia = p < alpha
-        
-        if filtro == "Dependencia" and not dependencia: continue
-        if filtro == "Independencia" and dependencia: continue
-            
-        resultados.append({
-            'Variable 1': var1, 'Variable 2': var2,
-            'Estadístico χ²': f"{chi2:.4f}", 'p-valor': f"{p:.4f}", 'gl': dof,
-            'Conclusión': "Existe evidencia de dependencia" if dependencia else "No hay evidencia suficiente de dependencia"
-        })
-    return pd.DataFrame(resultados)
-
-def obtener_resultados_spearman(df, num, alpha=0.05, filtro="Todas"):
-    resultados = []
-    for var1, var2 in combinations(num, 2):
-        coef, p = spearmanr(df[var1], df[var2])
-        fuerza = "Débil" if abs(coef) < 0.3 else ("Moderada" if abs(coef) < 0.7 else "Fuerte")
-        direccion = "Positiva" if coef > 0 else "Negativa"
-        significativa = p < alpha
-        
-        if filtro == "Asociación" and not significativa: continue
-        if filtro == "Sin Asociación" and significativa: continue
-            
-        resultados.append({
-            'Variable 1': var1, 'Variable 2': var2,
-            'Coeficiente': f"{round(abs(coef),5)}", 'Fuerza': fuerza, 'Dirección': direccion,
-            'p-valor': f"{p:.4f}", 
-            'Conclusión': "Existe evidencia de asociación monótona significativa" if significativa else "No hay evidencia suficiente de asociación"
-        })
-    return pd.DataFrame(resultados)
-
-def obtener_resultados_kruskal(df, num, cate, alpha=0.05, filtro="Todas"):
-    resultados = []
-    n_obs = len(df)
-    for var1, var2 in product(num, cate):
-        grupos = [df[var1][df[var2] == cat] for cat in df[var2].unique()]
-        if len(grupos) < 2: continue
-        k = len(grupos)
-        h_stat, p = kruskal(*grupos)
-        epsilon_sq = max(0, (h_stat - k + 1) / (n_obs - k))
-        fuerza = "Despreciable" if epsilon_sq < 0.01 else ("Pequeño" if epsilon_sq < 0.08 else ("Moderada" if epsilon_sq < 0.26 else "Grande"))
-        significativa = p < alpha
-        
-        if filtro == "Diferencias" and not significativa: continue
-        if filtro == "Sin Diferencias" and significativa: continue
-            
-        conclusion = (f"La distribución de '{var1}' varía significativamente entre al menos dos categorías de '{var2}'" 
-                      if significativa else 
-                      f"No hay evidencia suficiente para afirmar diferencias en la distribución de '{var1}' entre las categorías de '{var2}'")
-        
-        resultados.append({
-            'Variable Numérica': var1, 'Variable Categórica': var2,
-            'H_estadístico': f"{h_stat:.4f}", 'Tamaño del efecto': fuerza, 'p-valor': f"{p:.4f}",
-            'Conclusión': conclusion
-        })
-    return pd.DataFrame(resultados)
-
-# ==================== INTERFAZ STREAMLIT ====================
-
-def main():
-    st.title("📊 Análisis Exploratorio de Datos - Regresión")
     st.markdown("---")
 
-    # 1. CARGA DE DATOS
-    st.header("1. Carga de Datos")
-    if st.button("Cargar Dataset"):
-        try:
-            ruta_csv = encontrar_csv()
-            df = pd.read_csv(ruta_csv)
-            df.columns = df.columns.str.strip()
-            df = df.loc[:, ~df.columns.str.startswith('Unnamed:')]
-            st.session_state['df_original'] = df
-            st.success(f"Dataset cargado: {df.shape[0]} filas × {df.shape[1]} columnas")
-        except Exception as e:
-            st.error(f"Error al cargar: {e}")
+    # ── Distribución del Target ───────────────
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        st.subheader("Distribución de Attrition")
+        counts = dff[TARGET].value_counts().reset_index()
+        counts.columns = ["Attrition", "Count"]
+        fig = px.pie(counts, names="Attrition", values="Count",
+                     color_discrete_sequence=[SUCCESS, DANGER],
+                     hole=0.45)
+        fig.update_traces(textinfo="percent+label")
+        fig.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10),
+                          paper_bgcolor="rgba(0,0,0,0)", font_color="#EEE")
+        st.plotly_chart(fig, use_container_width=True)
 
-    if 'df_original' not in st.session_state:
-        st.stop()
+    with c2:
+        st.subheader("Attrition por Departamento y Género")
+        gdf = (dff.groupby(["Department", "Gender", TARGET])
+                  .size().reset_index(name="n"))
+        gdf["pct"] = gdf.groupby(["Department", "Gender"])["n"].transform(lambda x: x/x.sum()*100)
+        gdf_yes = gdf[gdf[TARGET] == "yes"]
+        fig2 = px.bar(gdf_yes, x="Department", y="pct", color="Gender",
+                      barmode="group", text_auto=".1f",
+                      labels={"pct": "% Attrition", "Department": "Departamento"},
+                      color_discrete_sequence=PALETTE)
+        fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                           font_color="#EEE", legend_title_text="Género")
+        st.plotly_chart(fig2, use_container_width=True)
 
-    df = st.session_state['df_original']
+    st.markdown("---")
 
-    # 2. CORRECCIÓN DE DATOS INCONSISTENTES
-    st.header("2. Corrección de Datos Inconsistentes")
-    if st.button("Aplicar Corrección de Valores"):
-        columnas = list(df.columns)
-        
-        # Valores inconsistentes o erróneos en las columnas
-        valor1 = df[columnas[25]].unique()[2]
-        valor2 = df[columnas[26]].unique()[135]
-        valor3 = df[columnas[28]].unique()[161]
-        
-        # Reemplazo
-        df[columnas[25]] = df[columnas[25]].replace(valor1, "No ")
-        df[columnas[26]] = df[columnas[26]].replace(valor2, 1.42)
-        df[columnas[28]] = df[columnas[28]].replace(valor3, 3.1)
-        
-        st.session_state['df_corregido'] = df
-        st.success("✅ Corrección aplicada exitosamente")
-        st.write(f"**Valores corregidos:**")
-        st.write(f"- Columna {columnas[25]}: {valor1} → 'No '")
-        st.write(f"- Columna {columnas[26]}: {valor2} → 1.42")
-        st.write(f"- Columna {columnas[28]}: {valor3} → 3.1")
+    # ── Análisis Univariado ───────────────────
+    st.subheader("🔍 Análisis Univariado por Variable Numérica")
+    col_sel = st.selectbox("Selecciona variable numérica", num_cols, index=num_cols.index("MonthlyIncome"))
 
-    if 'df_corregido' in st.session_state:
-        df = st.session_state['df_corregido']
-    else:
-        st.warning("⚠️ Aplica la corrección de datos primero")
-        st.stop()
+    c3, c4 = st.columns(2)
+    with c3:
+        fig3 = px.histogram(dff, x=col_sel, color=TARGET,
+                            barmode="overlay", nbins=30, opacity=0.75,
+                            color_discrete_map={"yes": DANGER, "no": SUCCESS},
+                            labels={TARGET: "Attrition"})
+        fig3.update_layout(title=f"Distribución de {col_sel}",
+                           paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                           font_color="#EEE")
+        st.plotly_chart(fig3, use_container_width=True)
 
-    # 3. IMPUTACIÓN
-    st.header("3. Tratamiento de Datos Faltantes")
-    st.subheader("Valores faltantes originales")
-    st.write(df.isna().sum()[df.isna().sum() > 0])
+    with c4:
+        fig4 = px.box(dff, x=TARGET, y=col_sel, color=TARGET,
+                      color_discrete_map={"yes": DANGER, "no": SUCCESS},
+                      points="outliers",
+                      labels={TARGET: "Attrition", col_sel: col_sel})
+        fig4.update_layout(title=f"Box Plot: {col_sel} vs Attrition",
+                           showlegend=False,
+                           paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                           font_color="#EEE")
+        st.plotly_chart(fig4, use_container_width=True)
 
-    cols_numericas = df.select_dtypes(include='number').columns
-    df_media = df.fillna(df.mean(numeric_only=True))
-    imputer_knn = KNNImputer(n_neighbors=5)
-    df_numeric_imputed = pd.DataFrame(imputer_knn.fit_transform(df[cols_numericas]), columns=cols_numericas, index=df.index)
-    df_knn = df.copy()
-    df_knn[cols_numericas] = df_numeric_imputed
+    st.markdown("---")
 
-    metodo = st.radio("Seleccione método de imputación:", ["Original (sin imputar)", "Media", "KNN"], horizontal=True)
-    
-    if metodo == "Original":
-        df_tratado = df.copy()
-    elif metodo == "Media":
-        df_tratado = df_media
-    else:
-        df_tratado = df_knn
+    # ── Variable Categórica ───────────────────
+    st.subheader("📊 Attrition por Variable Categórica")
+    cat_sel = st.selectbox("Selecciona variable categórica", cat_cols,
+                           index=cat_cols.index("JobRole") if "JobRole" in cat_cols else 0)
 
-    st.success(f"Método seleccionado: {metodo}")
-    st.subheader("Estadísticas después de imputación")
-    st.dataframe(df_tratado.describe())
+    gdf2 = (dff.groupby([cat_sel, TARGET]).size().reset_index(name="n"))
+    gdf2["pct"] = gdf2.groupby(cat_sel)["n"].transform(lambda x: x/x.sum()*100)
 
-    st.session_state['df'] = df_tratado
-    df = df_tratado
+    fig5 = px.bar(gdf2, x=cat_sel, y="pct", color=TARGET, barmode="stack",
+                  text_auto=".1f",
+                  color_discrete_map={"yes": DANGER, "no": SUCCESS},
+                  labels={"pct": "% del grupo", cat_sel: cat_sel, TARGET: "Attrition"})
+    fig5.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                       font_color="#EEE", xaxis_tickangle=-35)
+    st.plotly_chart(fig5, use_container_width=True)
 
-    # 4. IDENTIFICACIÓN DE VARIABLES
-    categoricas, numericas = indentificar_tipos_de_variables(df)
-    Valores_a_quitar_cat = ['Program', 'What are the skills do you have ?', 'What is you interested area?']
-    categoricas_limpias = [var for var in categoricas if var not in Valores_a_quitar_cat]
-    Variables_mas_importante_categoricas = categoricas_limpias
-    Variables_mas_importante_numericas = numericas
-    target = "What is your current CGPA?"
+    st.markdown("---")
 
-    st.header("4. Tipos de Variables")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**Numéricas ({len(numericas)}):**")
-        st.write(numericas)
-    with col2:
-        st.write(f"**Categóricas ({len(categoricas_limpias)}):**")
-        st.write(categoricas_limpias)
+    # ── Correlación ───────────────────────────
+    st.subheader("🔗 Mapa de Correlación")
+    corr = dff[num_cols].corr()
+    fig6 = px.imshow(corr, text_auto=".2f", aspect="auto",
+                     color_continuous_scale="RdBu_r", zmin=-1, zmax=1)
+    fig6.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="#EEE",
+                       height=500, title="Correlación entre variables numéricas")
+    st.plotly_chart(fig6, use_container_width=True)
 
-    # 5. EDA VISUALIZACIONES
-    st.header("5. Análisis Exploratorio & Visualizaciones")
-    tab1, tab2, tab3, tab4 = st.tabs(["Categóricas", "Numéricas (Histogramas)", "Boxplots", "Scatter Plots"])
+    st.markdown("---")
 
-    with tab1:
-        var_cat = st.selectbox("Variable categórica:", Variables_mas_importante_categoricas)
-        fig, ax = plt.subplots(figsize=(8, 4))
-        sns.countplot(x=var_cat, data=df.dropna(), ax=ax)
-        plt.xticks(rotation=45)
-        plt.title(f'Plot de {var_cat}')
-        plt.tight_layout()
-        st.pyplot(fig)
+    # ── Scatter Interactivo ───────────────────
+    st.subheader("🔵 Scatter Plot Interactivo")
+    sc1, sc2, sc3 = st.columns(3)
+    x_ax = sc1.selectbox("Eje X", num_cols, index=num_cols.index("MonthlyIncome"))
+    y_ax = sc2.selectbox("Eje Y", num_cols, index=num_cols.index("YearsAtCompany"))
+    sz_ax = sc3.selectbox("Tamaño (opcional)", ["Ninguno"] + num_cols)
 
-    with tab2:
-        var_num_hist = st.selectbox("Variable numérica:", Variables_mas_importante_numericas)
-        incluir_outliers = st.checkbox("Incluir outliers en histograma", value=False)
-        if incluir_outliers:
-            fig = crear_histogramas_con_outliers(df, var_num_hist)
+    fig7 = px.scatter(dff, x=x_ax, y=y_ax,
+                      color=TARGET,
+                      size=sz_ax if sz_ax != "Ninguno" else None,
+                      color_discrete_map={"yes": DANGER, "no": SUCCESS},
+                      opacity=0.65, hover_data=["JobRole", "Department"],
+                      labels={TARGET: "Attrition"})
+    fig7.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                       font_color="#EEE")
+    st.plotly_chart(fig7, use_container_width=True)
+
+    st.markdown("---")
+
+    # ── Tabla de datos ────────────────────────
+    with st.expander("📋 Ver datos filtrados"):
+        st.dataframe(dff.head(200), use_container_width=True)
+        st.caption(f"Mostrando hasta 200 de {len(dff)} filas filtradas.")
+
+
+# ═════════════════════════════════════════════
+#  PESTAÑA 2 — REGRESIÓN
+# ═════════════════════════════════════════════
+def tab_regresion():
+    st.header("🎓 Predicción de CGPA Estudiantil — Regresión")
+    st.markdown("Dataset con **894 estudiantes universitarios** y múltiples variables académicas "
+                "y socioeconómicas. La variable objetivo es el **CGPA actual**.")
+
+    try:
+        df = load_regresion()
+    except FileNotFoundError:
+        st.error("No se encontró `dataset_regresion.csv` en la carpeta actual.")
+        return
+
+    TARGET = "What is your current CGPA?"
+
+    # Nombres cortos para UI
+    SHORT = {
+        "What is your current CGPA?":                                "CGPA actual",
+        "What was your previous SGPA?":                              "SGPA previo",
+        "How many hour do you study daily? (Hours )":                "Horas estudio/día",
+        "How many times do you seat for study in a day?":            "Sesiones estudio/día",
+        "How many hour do you spent daily in social media? (Hours)": "Horas redes sociales/día",
+        "How many hour do you spent daily on your skill development? (Hours )": "Horas desarrollo skills/día",
+        "Average attendance on class (Percentage )":                 "Asistencia (%)",
+        "Current Semester":                                          "Semestre actual",
+        "Age (Years)":                                               "Edad",
+        "How many Credit did you have completed?":                   "Créditos completados",
+        "What is your monthly Family Income ":                       "Ingreso familiar mensual",
+    }
+
+    num_cols_raw = [TARGET, "What was your previous SGPA?",
+                    "How many hour do you study daily? (Hours )",
+                    "How many times do you seat for study in a day?",
+                    "How many hour do you spent daily in social media? (Hours)",
+                    "How many hour do you spent daily on your skill development? (Hours )",
+                    "Average attendance on class (Percentage )",
+                    "Current Semester", "Age (Years)",
+                    "How many Credit did you have completed?",
+                    "What is your monthly Family Income "]
+    num_cols_raw = [c for c in num_cols_raw if c in df.columns]
+
+    cat_cols_raw = ["Gender", "Program",
+                    "Do you have meritorious scholarship ?",
+                    "What is your preferable learning mode?",
+                    "Status of your English language proficiency",
+                    "Did you ever fall in probation?",
+                    "Are you engaged with any co-curriculum activities?",
+                    "Do you have personal Computer?"]
+    cat_cols_raw = [c for c in cat_cols_raw if c in df.columns]
+
+    dff = df.dropna(subset=[TARGET]).copy()
+
+    # ── Sidebar ──────────────────────────────
+    with st.sidebar:
+        st.subheader("⚙️ Filtros — Regresión")
+        if "Program" in dff.columns:
+            prog_opts = ["Todos"] + sorted(dff["Program"].dropna().unique().tolist())
+            prog_sel  = st.selectbox("Programa", prog_opts)
         else:
-            fig = crear_histogramas_sin_outliers(df, var_num_hist)
-        st.pyplot(fig)
+            prog_sel = "Todos"
+        if "Gender" in dff.columns:
+            gen_opts  = ["Todos"] + sorted(dff["Gender"].dropna().unique().tolist())
+            gen_sel   = st.selectbox("Género", gen_opts)
+        else:
+            gen_sel = "Todos"
+        cgpa_range = st.slider("Rango CGPA", 0.0, 5.0, (0.0, 5.0), step=0.1)
 
-    with tab3:
-        st.write("Boxplots de CGPA por categoría:")
-        var_cat_box = st.selectbox("Categoría para Boxplot:", Variables_mas_importante_categoricas, key="box_cat")
-        temp_df = df[[var_cat_box, target]].dropna()
-        if len(temp_df) > 0:
-            fig, ax = plt.subplots(figsize=(12, 7))
-            temp_df.boxplot(column=target, by=var_cat_box, ax=ax)
-            plt.suptitle('')
-            plt.xlabel(var_cat_box, fontsize=12, fontweight='bold')
-            plt.ylabel(target, fontsize=12, fontweight='bold')
-            plt.title(f'Distribución de CGPA por {var_cat_box}', fontsize=13, fontweight='bold')
-            plt.xticks(rotation=45)
-            plt.tight_layout()
-            st.pyplot(fig)
+    mask = dff[TARGET].between(*cgpa_range)
+    if prog_sel != "Todos" and "Program" in dff.columns:
+        mask &= dff["Program"] == prog_sel
+    if gen_sel != "Todos" and "Gender" in dff.columns:
+        mask &= dff["Gender"] == gen_sel
+    dff = dff[mask].copy()
 
-    with tab4:
-        var_num_scatter = st.selectbox("Variable X (Scatter):", [v for v in Variables_mas_importante_numericas if v != target])
-        temp_df = df[[var_num_scatter, target]].dropna()
-        if len(temp_df) > 0:
-            fig, ax = plt.subplots(figsize=(12, 10))
-            ax.scatter(temp_df[var_num_scatter], temp_df[target], alpha=0.6, edgecolors='k', s=70, color='steelblue')
-            ax.set_title(f'Relación entre {var_num_scatter} y CGPA', fontsize=14, fontweight='bold')
-            ax.set_xlabel(var_num_scatter, fontsize=12)
-            ax.set_ylabel(target, fontsize=12)
-            ax.grid(True, alpha=1)
-            plt.tight_layout()
-            st.pyplot(fig)
+    # ── KPIs ─────────────────────────────────
+    k1, k2, k3, k4 = st.columns(4)
+    with k1: metric_card("Estudiantes",    f"{len(dff):,}")
+    with k2: metric_card("CGPA Promedio",  f"{dff[TARGET].mean():.3f}", color=ACCENT)
+    with k3: metric_card("CGPA Mediana",   f"{dff[TARGET].median():.3f}", color=SUCCESS)
+    with k4: metric_card("Desv. Estándar", f"{dff[TARGET].std():.3f}", color=WARNING)
 
-    # 6. CORRELACIONES
-    st.header("6. Correlaciones")
-    tipo_corr = st.selectbox("Método de correlación:", ["Spearman", "Kendall", "Pearson"])
-    
-    df_numeric = df.select_dtypes(include=[np.number]).dropna()
-    corr_target = df_numeric.corr(method=tipo_corr.lower())[target].drop(target).sort_values(ascending=False)
-    
-    fig, ax = plt.subplots(figsize=(12, 6))
-    corr_target.plot(kind='bar', color='skyblue', edgecolor='black', ax=ax)
-    ax.set_title(f'Correlación ({tipo_corr}) de variables con {target}', fontsize=16, fontweight='bold')
-    ax.set_ylabel('Correlación', fontsize=12)
-    ax.set_xlabel('Variables', fontsize=12)
-    ax.axvline(x=0, color='black', linestyle='--', linewidth=0.8)
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot(fig)
+    st.markdown("---")
 
-    # 7. PRUEBAS ESTADÍSTICAS
-    st.header("7. Pruebas de Asociación y Dependencia")
-    alpha = st.slider("Nivel de significancia (α):", 0.01, 0.10, 0.05, 0.01)
+    # ── Distribución del Target ───────────────
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("Distribución del CGPA")
+        fig = px.histogram(dff, x=TARGET, nbins=30, color_discrete_sequence=[ACCENT],
+                           labels={TARGET: "CGPA actual"})
+        fig.add_vline(x=dff[TARGET].mean(), line_dash="dash", line_color=WARNING,
+                      annotation_text=f"Media: {dff[TARGET].mean():.2f}")
+        fig.add_vline(x=dff[TARGET].median(), line_dash="dot", line_color=SUCCESS,
+                      annotation_text=f"Mediana: {dff[TARGET].median():.2f}")
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                          font_color="#EEE")
+        st.plotly_chart(fig, use_container_width=True)
 
-    p_chi, p_spear, p_krusk = st.tabs(["Chi-Cuadrado", "Spearman", "Kruskal-Wallis"])
+    with c2:
+        if "Program" in dff.columns:
+            st.subheader("CGPA por Programa")
+            fig2 = px.box(dff, x="Program", y=TARGET, color="Program",
+                          color_discrete_sequence=PALETTE,
+                          labels={TARGET: "CGPA", "Program": "Programa"})
+            fig2.update_layout(showlegend=False, xaxis_tickangle=-35,
+                               paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                               font_color="#EEE")
+            st.plotly_chart(fig2, use_container_width=True)
 
-    with p_chi:
-        st.subheader("Prueba Chi-Cuadrado (Categóricas)")
-        filtro_chi = st.selectbox("Filtrar resultados:", ["Todas", "Dependencia", "Independencia"])
-        if st.button("Ejecutar Chi-Cuadrado"):
-            res_chi = obtener_resultados_chi(df, Variables_mas_importante_categoricas, alpha, filtro_chi)
-            if not res_chi.empty:
-                st.dataframe(res_chi, use_container_width=True)
-                st.info(f"Total de pruebas: {len(obtener_resultados_chi(df, Variables_mas_importante_categoricas, alpha, 'Todas'))}")
-            else:
-                st.warning("No hay resultados con el filtro seleccionado.")
+    st.markdown("---")
 
-    with p_spear:
-        st.subheader("Prueba de Spearman (Numéricas)")
-        filtro_spear = st.selectbox("Filtrar resultados:", ["Todas", "Asociación", "Sin Asociación"], key="filtro_s")
-        if st.button("Ejecutar Spearman"):
-            res_spear = obtener_resultados_spearman(df, Variables_mas_importante_numericas, alpha, filtro_spear)
-            if not res_spear.empty:
-                st.dataframe(res_spear, use_container_width=True)
-                st.info(f"Total de pares: {len(obtener_resultados_spearman(df, Variables_mas_importante_numericas, alpha, 'Todas'))}")
-            else:
-                st.warning("No hay resultados con el filtro seleccionado.")
+    # ── Correlación con CGPA ─────────────────
+    st.subheader("📈 Correlación de Variables Numéricas con CGPA")
+    num_df = dff[num_cols_raw].dropna()
+    corr_target = (num_df.corr()[TARGET]
+                         .drop(TARGET)
+                         .sort_values(key=abs, ascending=False))
 
-    with p_krusk:
-        st.subheader("Prueba de Kruskal-Wallis (Numérica vs Categórica)")
-        filtro_krusk = st.selectbox("Filtrar resultados:", ["Todas", "Diferencias", "Sin Diferencias"], key="filtro_k")
-        if st.button("Ejecutar Kruskal-Wallis"):
-            res_krusk = obtener_resultados_kruskal(df, Variables_mas_importante_numericas, Variables_mas_importante_categoricas, alpha, filtro_krusk)
-            if not res_krusk.empty:
-                st.dataframe(res_krusk, use_container_width=True)
-                st.info(f"Total de comparaciones: {len(obtener_resultados_kruskal(df, Variables_mas_importante_numericas, Variables_mas_importante_categoricas, alpha, 'Todas'))}")
-            else:
-                st.warning("No hay resultados con el filtro seleccionado.")
+    colors = [DANGER if v < 0 else SUCCESS for v in corr_target]
+    fig3 = go.Figure(go.Bar(
+        x=corr_target.values,
+        y=[SHORT.get(c, c) for c in corr_target.index],
+        orientation="h",
+        marker_color=colors,
+        text=[f"{v:.3f}" for v in corr_target.values],
+        textposition="outside",
+    ))
+    fig3.update_layout(xaxis_title="Correlación de Pearson", yaxis_title="",
+                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                       font_color="#EEE", height=400,
+                       xaxis=dict(range=[-1, 1]))
+    st.plotly_chart(fig3, use_container_width=True)
+
+    st.markdown("---")
+
+    # ── Scatter vs Variable Numérica ─────────
+    st.subheader("🔵 Relación con CGPA")
+    num_choices = [c for c in num_cols_raw if c != TARGET]
+    x_sel = st.selectbox("Variable X", num_choices,
+                         format_func=lambda c: SHORT.get(c, c),
+                         index=0)
+
+    color_by = None
+    if "Program" in dff.columns:
+        color_by = "Program"
+
+    fig4 = px.scatter(dff, x=x_sel, y=TARGET, color=color_by,
+                      trendline="ols", opacity=0.65,
+                      color_discrete_sequence=PALETTE,
+                      labels={TARGET: "CGPA actual", x_sel: SHORT.get(x_sel, x_sel)})
+    fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                       font_color="#EEE")
+    st.plotly_chart(fig4, use_container_width=True)
+
+    # Estadística de regresión simple
+    sub = dff[[x_sel, TARGET]].dropna()
+    if len(sub) > 5:
+        slope, intercept, r, p, _ = stats.linregress(sub[x_sel], sub[TARGET])
+        st.info(f"**Regresión lineal simple** — R² = {r**2:.4f} | "
+                f"pendiente = {slope:.4f} | p-valor = {p:.4e}")
+
+    st.markdown("---")
+
+    # ── CGPA por Variable Categórica ─────────
+    st.subheader("📊 CGPA por Variable Categórica")
+    CAT_LABELS = {c: c.replace("Do you ", "").replace("?", "").replace("What is ", "").strip().capitalize()
+                  for c in cat_cols_raw}
+    cat_sel = st.selectbox("Variable categórica", cat_cols_raw,
+                           format_func=lambda c: CAT_LABELS.get(c, c))
+
+    dff_cat = dff[[cat_sel, TARGET]].dropna()
+    fig5 = px.box(dff_cat, x=cat_sel, y=TARGET, color=cat_sel,
+                  color_discrete_sequence=PALETTE, points="outliers",
+                  labels={TARGET: "CGPA actual", cat_sel: CAT_LABELS.get(cat_sel, cat_sel)})
+    fig5.update_layout(showlegend=False, xaxis_tickangle=-30,
+                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                       font_color="#EEE")
+    st.plotly_chart(fig5, use_container_width=True)
+
+    # Test ANOVA
+    groups = [g[TARGET].dropna().values for _, g in dff_cat.groupby(cat_sel) if len(g) > 1]
+    if len(groups) >= 2:
+        f_stat, p_val = stats.f_oneway(*groups)
+        color = "🟢" if p_val < 0.05 else "🔴"
+        st.info(f"{color} **ANOVA** — F = {f_stat:.3f} | p-valor = {p_val:.4e} | "
+                f"{'Diferencia significativa (α=0.05)' if p_val < 0.05 else 'Sin diferencia significativa'}")
+
+    st.markdown("---")
+
+    # ── Matriz de Correlación ─────────────────
+    st.subheader("🔗 Mapa de Correlación entre Variables Numéricas")
+    corr_full = num_df.rename(columns=SHORT).corr()
+    fig6 = px.imshow(corr_full, text_auto=".2f", aspect="auto",
+                     color_continuous_scale="RdBu_r", zmin=-1, zmax=1)
+    fig6.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="#EEE", height=500)
+    st.plotly_chart(fig6, use_container_width=True)
+
+    st.markdown("---")
+
+    # ── Tabla ─────────────────────────────────
+    with st.expander("📋 Ver datos filtrados"):
+        st.dataframe(dff.head(200), use_container_width=True)
+        st.caption(f"Mostrando hasta 200 de {len(dff)} filas filtradas.")
+
+
+# ═════════════════════════════════════════════
+#  MAIN
+# ═════════════════════════════════════════════
+def main():
+    st.markdown("""
+        <style>
+            .block-container { padding-top: 1.5rem; }
+            [data-testid="stSidebar"] { background: #111827; }
+            h1, h2, h3 { color: #F0F4FF; }
+        </style>
+    """, unsafe_allow_html=True)
+
+    tab1, tab2 = st.tabs(["🏢 Clasificación — Attrition", "🎓 Regresión — CGPA"])
+    with tab1:
+        tab_clasificacion()
+    with tab2:
+        tab_regresion()
+
 
 if __name__ == "__main__":
     main()
